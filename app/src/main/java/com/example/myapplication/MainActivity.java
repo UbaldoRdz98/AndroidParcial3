@@ -1,7 +1,9 @@
 package com.example.myapplication;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import android.annotation.SuppressLint;
+import android.content.DialogInterface;
 import android.os.Bundle;
 import android.text.InputFilter;
 import android.text.InputType;
@@ -18,6 +20,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -54,8 +58,6 @@ public class MainActivity extends AppCompatActivity {
         tableLayout = findViewById(R.id.tableLayout);
         txtHeight.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         txtWeight.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-
-
         txtImc.setEnabled(false);
 
         db = FirebaseFirestore.getInstance();
@@ -72,18 +74,40 @@ public class MainActivity extends AppCompatActivity {
                 String redNumber = df.format(imc);
                 imc = Double.parseDouble(redNumber);
                 txtImc.setText(imc.toString());
-                saveInfo(name, height, weight, imc);
+                saveInfo(name, imc);
             }
         });
         readInfo();
     }
-    private void saveInfo(String name, double height, double weight, double imc) {
+    private void saveInfo(String name, double imc) {
         if (!name.isEmpty()) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            String mess = "";
+
+            if(imc < 18.5) {
+                mess = "Su IMC es de: " + imc + " Tienes bajo peso";
+            } else if (imc >= 18.5 && imc <= 24.9) {
+                mess = "Su IMC es de: " + imc + " Tiene peso normal";
+            } else if (imc >= 25.0 && imc <= 29.9) {
+                mess = "Su IMC es de: " + imc + " Tiene sobrepeso";
+            } else if (imc >= 30.0) {
+                mess = "Su IMC es de: " + imc + " Tiene obesidad";
+            }
+
+            builder.setMessage(mess)
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int id) {
+                            dialog.dismiss();
+                        }
+                    });
+            AlertDialog dialog = builder.create();
+            dialog.show();
+
+            Date date = new Date();
             Map<String, Object> user = new HashMap<>();
             user.put("Name", name);
-            user.put("Height", height);
-            user.put("Weight", weight);
             user.put("IMC", imc);
+            user.put("Date", date);
             infoCollection.add(user)
                     .addOnSuccessListener(documentReference -> {
                         Toast.makeText(MainActivity.this, "Información guardada en Firestore", Toast.LENGTH_SHORT).show();
@@ -91,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
                     .addOnFailureListener(e -> {
                         Toast.makeText(MainActivity.this, "Error al guardar información: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     });
-            updateTable(name, height, weight, imc);
+            updateTable(name, imc, date);
         } else {
             Toast.makeText(MainActivity.this, "Por favor ingresa texto", Toast.LENGTH_SHORT).show();
         }
@@ -103,10 +127,9 @@ public class MainActivity extends AppCompatActivity {
                 if (task.isSuccessful()) {
                     for (QueryDocumentSnapshot document : task.getResult()) {
                         String name = document.getString("Name");
-                        double height = document.getDouble("Height");
-                        double weight = document.getDouble("Weight");
                         double imc = document.getDouble("IMC");
-                        updateTable(name, height, weight, imc);
+                        Date date = document.getDate("Date");
+                        updateTable(name, imc, date);
                     }
                 } else {
                     Toast.makeText(MainActivity.this, "Error getting documents: " + task.getException(), Toast.LENGTH_SHORT).show();
@@ -114,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-    private void updateTable(String name, double height, double weight, double imc) {
+    private void updateTable(String name, double imc, Date date) {
         TableRow newRow = new TableRow(this);
         newRow.setLayoutParams(new TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT));
         TableRow.LayoutParams params = new TableRow.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
@@ -127,23 +150,19 @@ public class MainActivity extends AppCompatActivity {
         nameTextView.setText(name);
         newRow.addView(nameTextView);
 
-        TextView heightTextView = new TextView(this);
-        heightTextView.setLayoutParams(params);
-        heightTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 25);
-        heightTextView.setText(String.valueOf(height));
-        newRow.addView(heightTextView);
-
-        TextView weightTextView = new TextView(this);
-        weightTextView.setLayoutParams(params);
-        weightTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 25);
-        weightTextView.setText(String.valueOf(weight));
-        newRow.addView(weightTextView);
-
         TextView imcTextView = new TextView(this);
         imcTextView.setLayoutParams(params);
         imcTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 25);
         imcTextView.setText(String.valueOf(imc));
         newRow.addView(imcTextView);
+
+        TextView dateTextView = new TextView(this);
+        dateTextView.setLayoutParams(params);
+        dateTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 25);
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        String formattedDate = dateFormat.format(date);
+        dateTextView.setText(String.valueOf(formattedDate));
+        newRow.addView(dateTextView);
 
         tableLayout.addView(newRow);
     }
